@@ -1,0 +1,10 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "de.xmoddevx.donuttweks.mixin.client",
+  "compatibilityLevel": "JAVA_${java}",
+  "client": [],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

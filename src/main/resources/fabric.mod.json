@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "id": "${id}",
+  "version": "${version}",
+  "name": "${name}",
+  "description": "DonutTweks - Tweaks rund um Donuts. Grundgeruest fuer Minecraft 1.21.11 bis 26.3.",
+  "authors": [
+    "Xmod_devX"
+  ],
+  "contact": {},
+  "license": "All Rights Reserved",
+  "icon": "assets/donuttweks/icon.png",
+  "environment": "*",
+  "entrypoints": {
+    "main": [
+      "de.xmoddevx.donuttweks.DonutTweks"
+    ],
+    "client": [
+      "de.xmoddevx.donuttweks.client.DonutTweksClient"
+    ]
+  },
+  "mixins": [
+    "donuttweks.mixins.json",
+    {
+      "config": "donuttweks.client.mixins.json",
+      "environment": "client"
+    }
+  ],
+  "depends": {
+    "fabricloader": ">=${loader}",
+    "minecraft": "${minecraft}",
+    "java": ">=${java}",
+    "fabric-api": "*"
+  }
+}
