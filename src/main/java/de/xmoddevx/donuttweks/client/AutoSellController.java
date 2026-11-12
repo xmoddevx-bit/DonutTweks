@@ -43,7 +43,7 @@ public final class AutoSellController {
     private boolean running;
     private Item targetItem;
     private String targetName = "";
-    private int price;
+    private String price = "0";
     private int stacksPerBatch = 1;
     private int intervalTicks = 20;
 
@@ -86,11 +86,11 @@ public final class AutoSellController {
      *
      * @param item            item type to sell
      * @param name            display name, used in the status messages
-     * @param price           price passed to {@code /ah sell}
+     * @param price           price passed to {@code /ah sell}, e.g. {@code 35000}, {@code 35k} or {@code 1.2m}
      * @param stacksPerBatch  how many stacks are listed before the short batch pause
      * @param intervalTicks   ticks between two commands
      */
-    public void start(Item item, String name, int price, int stacksPerBatch, int intervalTicks) {
+    public void start(Item item, String name, String price, int stacksPerBatch, int intervalTicks) {
         this.targetItem = item;
         this.targetName = name;
         this.price = price;

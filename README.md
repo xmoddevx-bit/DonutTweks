@@ -82,10 +82,10 @@ Wichtige Klassen:
 
 ## Auto-Verkauf (Auktionshaus)
 
-Mit **V** (änderbar unter *Optionen → Steuerung → DonutTweks*) öffnest du den Auto-Verkauf:
+Mit **R** (änderbar unter *Optionen → Steuerung → DonutTweks*) öffnest du den Auto-Verkauf:
 
 1. Item aus dem Inventar anklicken (das Item muss im Inventar liegen)
-2. **Preis pro Stack** eintragen
+2. **Preis pro Stack** eintragen – ganze Zahlen oder Server-Kurzschreibweise (`35000`, `35k`, `1.2m`, `3b`)
 3. **Stacks pro Durchgang** und **Intervall (Sekunden)** einstellen
 4. **Starten** – das Fenster schließt sich und die Mod sendet wiederholt:
 
@@ -98,7 +98,7 @@ Hotbar-Slot gelegt (der ausgewählte Slot selbst bleibt unverändert), damit das
 immer den richtigen Gegenstand in der Hand hat. Das läuft weiter, bis kein passendes Item mehr im
 Inventar liegt – der Fortschritt steht im Chat und im Fenster.
 
-- **Nochmal V** oder der *Stoppen*-Button beendet den Lauf.
+- **Nochmal R** oder der *Stoppen*-Button beendet den Lauf.
 - Sobald sich irgendein GUI öffnet (Chat, Inventar, Bestätigungsfenster des Plugins), stoppt die
   Mod automatisch. So wird nie blind durch GUIs geklickt.
 - Standard: 1 Sekunde zwischen zwei Befehlen, 1 Stack pro Durchgang, 2 Sekunden Pause zwischen

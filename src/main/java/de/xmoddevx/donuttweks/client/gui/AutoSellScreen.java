@@ -225,8 +225,8 @@ public class AutoSellScreen extends Screen {
             return;
         }
 
-        int price = parseInt(priceText, 0);
-        if (price <= 0) {
+        String price = parsePrice(priceText);
+        if (price == null) {
             hint = Component.translatable("screen.donuttweks.autosell.invalid_price");
             return;
         }
@@ -244,6 +244,67 @@ public class AutoSellScreen extends Screen {
         } catch (NumberFormatException exception) {
             return fallback;
         }
+    }
+
+    /**
+     * Parses a price the way players usually type it: {@code 35000}, {@code 35k},
+     * {@code 1.2m} or {@code 3b}. The notation is kept for the command, because
+     * auction house plugins understand the suffix best.
+     *
+     * @return the normalized price argument, or {@code null} if it is not a positive price
+     */
+    private static String parsePrice(String input) {
+        if (input == null) {
+            return null;
+        }
+
+        String value = input.trim().toLowerCase(java.util.Locale.ROOT).replace(" ", "");
+        if (value.isEmpty()) {
+            return null;
+        }
+
+        char suffix = value.charAt(value.length() - 1);
+        long multiplier = switch (suffix) {
+            case 'k' -> 1_000L;
+            case 'm' -> 1_000_000L;
+            case 'b' -> 1_000_000_000L;
+            default -> 1L;
+        };
+
+        String number = multiplier == 1L ? value : value.substring(0, value.length() - 1);
+        number = number.replace(',', '.');
+
+        int separators = 0;
+        for (int i = 0; i < number.length(); i++) {
+            char character = number.charAt(i);
+            if (character == '.') {
+                if (++separators > 1) {
+                    return null;
+                }
+            } else if (character < '0' || character > '9') {
+                return null;
+            }
+        }
+
+        if (number.endsWith(".")) {
+            number = number.substring(0, number.length() - 1);
+        }
+        if (number.isEmpty()) {
+            return null;
+        }
+
+        double parsed;
+        try {
+            parsed = Double.parseDouble(number) * multiplier;
+        } catch (NumberFormatException exception) {
+            return null;
+        }
+
+        if (!(parsed > 0D) || Double.isInfinite(parsed)) {
+            return null;
+        }
+
+        return multiplier == 1L ? number : number + suffix;
     }
 
     private static String shorten(String value, int maxChars) {

@@ -32,13 +32,13 @@ public class DonutTweksClient implements ClientModInitializer {
                 //?} else {
                 /*InputConstants.Type.KEYSYM,
                 *///?}
-                InputConstants.KEY_V,
+                InputConstants.KEY_R,
                 category));
         //?} else {
         /*autoSellKey = KeyBindingHelper.registerKeyBinding(new KeyMapping(
                 "key.donuttweks.auto_sell",
                 InputConstants.Type.KEYSYM,
-                InputConstants.KEY_V,
+                InputConstants.KEY_R,
                 category));
         *///?}
 
