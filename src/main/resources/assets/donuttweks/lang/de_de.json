@@ -15,7 +15,7 @@
   "screen.donuttweks.autosell.empty": "Keine Items im Inventar gefunden",
   "screen.donuttweks.autosell.selected": "Ausgew\u00e4hlt: %s",
   "screen.donuttweks.autosell.invalid_item": "W\u00e4hle ein Item, das im Inventar liegt",
-  "screen.donuttweks.autosell.invalid_price": "Der Preis muss eine positive Zahl sein (z. B. 35k)",
+  "screen.donuttweks.autosell.invalid_price": "Ung\u00fcltiger Preis - z. B. 35000, 35k, 1.2m (ohne k/m/b nur Ziffern)",
   "message.donuttweks.autosell.stopped": "[AutoSell] Auto-Verkauf gestoppt",
   "message.donuttweks.autosell.status.ready": "Bereit",
   "message.donuttweks.autosell.status.selling": "Verkaufe %s f\u00fcr %s ...",

@@ -15,7 +15,7 @@
   "screen.donuttweks.autosell.empty": "No items found in your inventory",
   "screen.donuttweks.autosell.selected": "Selected: %s",
   "screen.donuttweks.autosell.invalid_item": "Pick an item that is in your inventory",
-  "screen.donuttweks.autosell.invalid_price": "Price must be a positive number (e.g. 35k)",
+  "screen.donuttweks.autosell.invalid_price": "Invalid price - e.g. 35000, 35k, 1.2m (digits only without k/m/b)",
   "message.donuttweks.autosell.stopped": "[AutoSell] Auto-selling stopped",
   "message.donuttweks.autosell.status.ready": "Ready",
   "message.donuttweks.autosell.status.selling": "Selling %s for %s ...",

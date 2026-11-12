@@ -1,5 +1,6 @@
 package de.xmoddevx.donuttweks.client.gui;
 
+import de.xmoddevx.donuttweks.DonutTweks;
 import de.xmoddevx.donuttweks.client.AutoSellController;
 //? if >=26.1 {
 import net.minecraft.client.gui.GuiGraphicsExtractor;
@@ -215,19 +216,22 @@ public class AutoSellScreen extends Screen {
     private void startSelling() {
         hint = null;
 
+        DonutTweks.LOGGER.info("Auto-Sell start pressed: item={}, price='{}', stacks='{}', interval='{}'",
+                selectedName, priceText, stacksText, intervalText);
+
         if (selectedItem == null) {
-            hint = Component.translatable("screen.donuttweks.autosell.invalid_item");
+            reject("screen.donuttweks.autosell.invalid_item", "no item selected");
             return;
         }
         if (this.minecraft != null && this.minecraft.player != null
                 && AutoSellController.countItems(this.minecraft.player.getInventory(), selectedItem) <= 0) {
-            hint = Component.translatable("screen.donuttweks.autosell.invalid_item");
+            reject("screen.donuttweks.autosell.invalid_item", "item no longer in inventory: " + selectedName);
             return;
         }
 
         String price = parsePrice(priceText);
         if (price == null) {
-            hint = Component.translatable("screen.donuttweks.autosell.invalid_price");
+            reject("screen.donuttweks.autosell.invalid_price", "invalid price: '" + priceText + "'");
             return;
         }
 
@@ -236,6 +240,13 @@ public class AutoSellScreen extends Screen {
 
         AutoSellController.get().start(selectedItem, selectedName, price, stacks, seconds * 20);
         onClose();
+    }
+
+    /** Shows a validation error in the screen and in chat, and logs the reason. */
+    private void reject(String translationKey, String logReason) {
+        this.hint = Component.translatable(translationKey);
+        DonutTweks.LOGGER.info("Auto-Sell start rejected: {}", logReason);
+        AutoSellController.sendMessage(Component.translatable(translationKey));
     }
 
     private static int parseInt(String value, int fallback) {
@@ -272,25 +283,40 @@ public class AutoSellScreen extends Screen {
         };
 
         String number = multiplier == 1L ? value : value.substring(0, value.length() - 1);
-        number = number.replace(',', '.');
 
-        int separators = 0;
-        for (int i = 0; i < number.length(); i++) {
-            char character = number.charAt(i);
-            if (character == '.') {
-                if (++separators > 1) {
-                    return null;
-                }
-            } else if (character < '0' || character > '9') {
+        if (multiplier == 1L) {
+            // Without a suffix only plain digits are accepted, so "35.000" is not
+            // silently read as 35. Players who want 35,000 must type "35k".
+            if (number.isEmpty()) {
                 return null;
             }
-        }
+            for (int i = 0; i < number.length(); i++) {
+                char character = number.charAt(i);
+                if (character < '0' || character > '9') {
+                    return null;
+                }
+            }
+        } else {
+            number = number.replace(',', '.');
 
-        if (number.endsWith(".")) {
-            number = number.substring(0, number.length() - 1);
-        }
-        if (number.isEmpty()) {
-            return null;
+            int separators = 0;
+            for (int i = 0; i < number.length(); i++) {
+                char character = number.charAt(i);
+                if (character == '.') {
+                    if (++separators > 1) {
+                        return null;
+                    }
+                } else if (character < '0' || character > '9') {
+                    return null;
+                }
+            }
+
+            if (number.endsWith(".")) {
+                number = number.substring(0, number.length() - 1);
+            }
+            if (number.isEmpty()) {
+                return null;
+            }
         }
 
         double parsed;

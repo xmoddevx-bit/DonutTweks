@@ -85,7 +85,9 @@ Wichtige Klassen:
 Mit **R** (änderbar unter *Optionen → Steuerung → DonutTweks*) öffnest du den Auto-Verkauf:
 
 1. Item aus dem Inventar anklicken (das Item muss im Inventar liegen)
-2. **Preis pro Stack** eintragen – ganze Zahlen oder Server-Kurzschreibweise (`35000`, `35k`, `1.2m`, `3b`)
+2. **Preis pro Stack** eintragen – ganze Zahlen oder Server-Kurzschreibweise (`35000`, `35k`, `1.2m`, `3b`).
+   Ohne `k`/`m`/`b` sind nur reine Ziffern erlaubt (`35.000` wird abgelehnt, weil es sonst als `35`
+   gelesen würde – nimm `35k`).
 3. **Stacks pro Durchgang** und **Intervall (Sekunden)** einstellen
 4. **Starten** – das Fenster schließt sich und die Mod sendet wiederholt:
 
@@ -106,6 +108,8 @@ Inventar liegt – der Fortschritt steht im Chat und im Fenster.
   Command-Spam kickt. Die Werte stehen als Konstanten in `AutoSellController`.
 - Der Lauf endet automatisch, wenn das Item leer ist, die Welt verlassen wird oder der Server
   nicht auf den Befehl reagiert (z. B. keine Rechte).
+- Lehnt das Fenster einen Start ab (kein Item gewählt, Item nicht mehr im Inventar, ungültiger
+  Preis), erscheint der Grund rot im Fenster **und** im Chat.
 
 Voraussetzungen und Grenzen:
 
@@ -163,7 +167,7 @@ Mod-ID, Name, Gruppe und Version stehen in `stonecutter.properties.toml`:
 mod.id = "donuttweks"
 mod.name = "DonutTweks"
 mod.group = "de.xmoddevx.donuttweks"
-mod.version = "0.1.0"
+mod.version = "0.1.1"
 ```
 
 Danach ggf. das Package in `src/main/java` umbenennen und die Pfade in `fabric.mod.json`,

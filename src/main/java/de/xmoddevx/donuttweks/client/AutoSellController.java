@@ -138,6 +138,11 @@ public final class AutoSellController {
         sendMessage(Minecraft.getInstance().player, this.status);
     }
 
+    /** Shows a message in the player's chat, if a player is available. */
+    public static void sendMessage(Component message) {
+        sendMessage(Minecraft.getInstance().player, message);
+    }
+
     private static void sendMessage(LocalPlayer player, Component message) {
         if (player == null) {
             return;
