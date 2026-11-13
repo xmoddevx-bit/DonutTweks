@@ -201,9 +201,12 @@ public final class AutoSellController {
             return;
         }
 
-        if (hasOpenScreen(client) && !isAutoSellScreen(client)) {
-            // Safety: never send commands or click slots while a GUI is open.
-            DonutTweks.LOGGER.info("Auto-Sell stopped: a screen was opened ({})", screenName(client));
+        // Only a real container GUI (chest, auction house, plugin menu) is dangerous,
+        // because it replaces the menu we click in. Chat, the inventory screen and the
+        // pause screen are harmless - the player can keep watching the run there.
+        if (player.containerMenu != player.inventoryMenu) {
+            DonutTweks.LOGGER.info("Auto-Sell stopped: a container GUI was opened ({})",
+                    player.containerMenu.getClass().getName());
             stop(Component.translatable("message.donuttweks.autosell.status.gui"));
             return;
         }
@@ -254,6 +257,13 @@ public final class AutoSellController {
             sellRetries++;
             DonutTweks.LOGGER.info("Auto-Sell: no inventory change after sell command, repeating (try #{})",
                     sellRetries);
+            if (sellRetries == 10) {
+                // One-shot probe: if the server answers /ah at all, commands work and
+                // only the sell command itself is ignored.
+                DonutTweks.LOGGER.info("Auto-Sell: probing /ah to check whether commands are accepted");
+                sendMessage(Component.translatable("message.donuttweks.autosell.status.probe"));
+                client.getConnection().sendCommand("ah");
+            }
             if (sellRetries == 15) {
                 sendMessage(Component.translatable("message.donuttweks.autosell.status.waiting_server"));
             }
@@ -477,32 +487,6 @@ public final class AutoSellController {
             }
         }
         return best;
-    }
-
-    private static boolean hasOpenScreen(Minecraft client) {
-        //? if >=26.2 {
-        return client.gui.screen() != null;
-        //?} else {
-        /*return client.screen != null;
-        *///?}
-    }
-
-    /** Class name of the currently open screen, used by the diagnostics. */
-    private static String screenName(Minecraft client) {
-        //? if >=26.2 {
-        Object screen = client.gui.screen();
-        //?} else {
-        /*Object screen = client.screen;
-        *///?}
-        return screen == null ? "none" : screen.getClass().getName();
-    }
-
-    private static boolean isAutoSellScreen(Minecraft client) {
-        //? if >=26.2 {
-        return client.gui.screen() instanceof de.xmoddevx.donuttweks.client.gui.AutoSellScreen;
-        //?} else {
-        /*return client.screen instanceof de.xmoddevx.donuttweks.client.gui.AutoSellScreen;
-        *///?}
     }
 
     /** Counts all items of the given type in the 36 main inventory slots. */

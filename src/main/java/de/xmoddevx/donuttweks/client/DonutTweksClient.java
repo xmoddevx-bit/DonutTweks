@@ -64,6 +64,8 @@ public class DonutTweksClient implements ClientModInitializer {
                 DonutTweks.LOGGER.info("[AutoSell-Diag] command sent: /{}", command));
         ClientReceiveMessageEvents.GAME.register((message, overlay) ->
                 DonutTweks.LOGGER.info("[AutoSell-Diag] chat: {}", message.getString()));
+        ClientReceiveMessageEvents.CHAT.register((message, signedMessage, sender, params, receptionTimestamp) ->
+                DonutTweks.LOGGER.info("[AutoSell-Diag] player chat: {}", message.getString()));
 
         DonutTweks.LOGGER.info("DonutTweks client initialized");
     }
