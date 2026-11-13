@@ -328,15 +328,21 @@ public final class AutoSellController {
         if (hand.getItem() == targetItem) {
             if (autoSplit && hand.getCount() > itemsPerAuction) {
                 int empty = findEmptySlot(inventory, selected);
-                if (empty >= 0) {
-                    // Move the oversized stack out of the way, then split it properly.
-                    click(client, player, menuSlot(empty), selected, true);
-                    waitingForSwap = true;
-                    swapWantsEmptyHand = true;
-                    timeout = CLICK_TIMEOUT_TICKS;
+                if (empty < 0) {
+                    // Splitting needs a second slot. Selling the oversized stack instead
+                    // would list all of its items for the price of a single auction.
+                    DonutTweks.LOGGER.info(
+                            "Auto-Sell: no free slot to split the {}-item stack in the hand, stopping",
+                            hand.getCount());
+                    stop(Component.translatable("message.donuttweks.autosell.status.no_space"));
                     return;
                 }
-                // No free slot to split into: sell the stack as it is.
+                // Move the oversized stack out of the way, then split it properly.
+                click(client, player, menuSlot(empty), selected, true);
+                waitingForSwap = true;
+                swapWantsEmptyHand = true;
+                timeout = CLICK_TIMEOUT_TICKS;
+                return;
             }
 
             if (!autoSell) {
