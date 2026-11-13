@@ -48,8 +48,8 @@ public class AutoSellScreen extends Screen {
     private EditBox priceField;
     private EditBox stacksField;
 
-    private String priceText = "1000";
-    private String stacksText = "64";
+    private String priceText = "20k";
+    private String stacksText = "1";
     private boolean autoSplitEnabled = true;
     private boolean autoSellEnabled = true;
 

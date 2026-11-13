@@ -110,7 +110,7 @@ Inventar liegt. Bei **Items pro Auktion = 1** werden zum Beispiel 64 Items nache
 - **R** Ã¶ffnet wÃ¤hrend des Laufs das Einstellungsfenster; der *Stoppen*-Button beendet den Lauf.
 - Sobald sich irgendein GUI Ã¶ffnet (Chat, Inventar, BestÃ¤tigungsfenster des Plugins), stoppt die
   Mod automatisch. So wird nie blind durch GUIs geklickt.
-- Standard: 64 Items pro Auktion, Aufteilen und Verkaufen aktiviert.
+- Standard: 1 Item pro Auktion (Preis `20k`), Aufteilen und Verkaufen aktiviert.
 - Lehnt das Fenster einen Start ab (kein Item gewÃ¤hlt, Item nicht mehr im Inventar, ungÃ¼ltiger
   Preis), erscheint der Grund rot im Fenster **und** im Chat.
 
