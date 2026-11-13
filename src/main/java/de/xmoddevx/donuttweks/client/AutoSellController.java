@@ -10,7 +10,7 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 //? if >=26.1 {
 import net.minecraft.world.inventory.ContainerInput;
-//?} else {
+//? } else {
 /*import net.minecraft.world.inventory.ClickType;
 *///?}
 
@@ -19,8 +19,14 @@ import net.minecraft.world.inventory.ContainerInput;
  *
  * <p>The auction house plugins we target sell the stack in the player's main hand,
  * so the controller swaps the next matching stack into the selected hotbar slot
- * (server-side inventory click) before sending the command. It keeps going until
- * no more matching items are left in the inventory.</p>
+ * (server-side inventory click) before sending the command. Larger stacks are split
+ * down to the configured auction size. It keeps going until no more matching items
+ * remain.</p>
+ *
+ * <p>There is <b>no delay</b> between two sell commands: as soon as the server
+ * removed the stack from the hand, the next command is sent on the following tick.
+ * If the server does not react at all, the command is simply repeated - the
+ * controller never aborts because of a slow server.</p>
  *
  * <p>Everything runs on the client thread from the client tick event. The controller
  * stops as soon as the player opens any screen (chat, inventory or a plugin
@@ -29,32 +35,37 @@ import net.minecraft.world.inventory.ContainerInput;
 public final class AutoSellController {
     private static final AutoSellController INSTANCE = new AutoSellController();
 
-    /** Ticks to wait for the server to confirm an inventory swap before retrying. */
-    private static final int SWAP_TIMEOUT_TICKS = 20;
-    /** Short settle time after a confirmed swap, so the client has the new stack. */
-    private static final int SWAP_SETTLE_TICKS = 2;
-    /** Ticks to wait for the server to react to a sell command. */
-    private static final int SELL_TIMEOUT_TICKS = 80;
-    /** How often we may try to swap the same stack into the hand before aborting. */
-    private static final int MAX_SWAP_ATTEMPTS = 8;
-    /** Extra pause between two batches, so servers do not see a command flood. */
-    private static final int BATCH_PAUSE_TICKS = 40;
+    /** Ticks to wait for the server to confirm an inventory click before retrying it. */
+    private static final int CLICK_TIMEOUT_TICKS = 20;
+    /** Ticks before an unanswered sell command is repeated. */
+    private static final int SELL_RETRY_TICKS = 20;
+    /** Ticks to wait for the cursor to empty again after returning a split remainder. */
+    private static final int SPLIT_RETURN_TIMEOUT_TICKS = 40;
+    /** How often a single click may be retried before the controller gives up on it. */
+    private static final int MAX_CLICK_RETRIES = 8;
 
     private boolean running;
     private Item targetItem;
     private String targetName = "";
     private String price = "0";
-    private int stacksPerBatch = 1;
-    private int intervalTicks = 20;
+    private int itemsPerAuction = 64;
+    private boolean autoSplit = true;
+    private boolean autoSell = true;
 
-    private int cooldown;
     private int timeout;
-    private boolean waitingForResult;
+    private int clickRetries;
     private boolean waitingForSwap;
+    private boolean swapWantsEmptyHand;
+    private boolean waitingForResult;
     private int handCountBefore;
-    private int swapAttempts;
+    private int sellRetries;
     private int soldStacks;
-    private int batchSold;
+
+    /** Inventory slot the current stack is being split from, or {@code -1}. */
+    private int splitSource = -1;
+    /** 0 = idle, 1 = picking the stack up, 2 = placing single items, 3 = returning the remainder. */
+    private int splitPhase;
+    private int splitClicksRemaining;
 
     private Component status = Component.translatable("message.donuttweks.autosell.status.ready");
 
@@ -86,30 +97,36 @@ public final class AutoSellController {
      *
      * @param item            item type to sell
      * @param name            display name, used in the status messages
-     * @param price           price passed to {@code /ah sell}, e.g. {@code 35000}, {@code 35k} or {@code 1.2m}
-     * @param stacksPerBatch  how many stacks are listed before the short batch pause
-     * @param intervalTicks   ticks between two commands
+     * @param price           price argument passed to {@code /ah sell}, kept exactly as typed (e.g. {@code 20k})
+     * @param itemsPerAuction how many items each auction should contain (1-64)
+     * @param autoSplit       split bigger stacks down to {@code itemsPerAuction}
+     * @param autoSell        actually send the sell command (off = only prepare the hand)
      */
-    public void start(Item item, String name, String price, int stacksPerBatch, int intervalTicks) {
+    public void start(Item item, String name, String price, int itemsPerAuction,
+                      boolean autoSplit, boolean autoSell) {
         this.targetItem = item;
         this.targetName = name;
         this.price = price;
-        this.stacksPerBatch = Math.max(1, stacksPerBatch);
-        this.intervalTicks = Math.max(1, intervalTicks);
+        this.itemsPerAuction = Math.max(1, Math.min(64, itemsPerAuction));
+        this.autoSplit = autoSplit;
+        this.autoSell = autoSell;
 
         this.running = true;
-        this.cooldown = 0;
         this.timeout = 0;
-        this.waitingForResult = false;
+        this.clickRetries = 0;
         this.waitingForSwap = false;
-        this.swapAttempts = 0;
+        this.swapWantsEmptyHand = false;
+        this.waitingForResult = false;
+        this.sellRetries = 0;
         this.soldStacks = 0;
-        this.batchSold = 0;
+        this.splitSource = -1;
+        this.splitPhase = 0;
+        this.splitClicksRemaining = 0;
         this.status = Component.translatable("message.donuttweks.autosell.status.selling", name, price);
 
         DonutTweks.LOGGER.info(
-                "Auto-Sell started: item={}, price={}, stacksPerBatch={}, interval={} ticks",
-                name, price, this.stacksPerBatch, this.intervalTicks);
+                "Auto-Sell started: item={}, price={}, itemsPerAuction={}, autoSplit={}, autoSell={}",
+                name, price, this.itemsPerAuction, autoSplit, autoSell);
     }
 
     /** Stops a running session (key binding or button). */
@@ -121,9 +138,17 @@ public final class AutoSellController {
         if (!running) {
             return;
         }
+        // Never leave a split remainder on the cursor when stopping.
+        Minecraft client = Minecraft.getInstance();
+        if (splitSource >= 0 && client.player != null && client.gameMode != null
+                && !client.player.inventoryMenu.getCarried().isEmpty()) {
+            click(client, client.player, menuSlot(splitSource), 0, false);
+        }
         this.running = false;
         this.waitingForResult = false;
         this.waitingForSwap = false;
+        this.splitPhase = 0;
+        this.splitSource = -1;
         this.status = reason;
         DonutTweks.LOGGER.info("Auto-Sell stopped: {}", reason.getString());
         sendMessage(Minecraft.getInstance().player, reason);
@@ -134,7 +159,10 @@ public final class AutoSellController {
         this.running = false;
         this.waitingForResult = false;
         this.waitingForSwap = false;
+        this.splitPhase = 0;
+        this.splitSource = -1;
         this.status = Component.translatable("message.donuttweks.autosell.status.done", sold);
+        DonutTweks.LOGGER.info("Auto-Sell finished: {} auctions", sold);
         sendMessage(Minecraft.getInstance().player, this.status);
     }
 
@@ -166,7 +194,7 @@ public final class AutoSellController {
             return;
         }
 
-        if (hasOpenScreen(client)) {
+        if (hasOpenScreen(client) && !isAutoSellScreen(client)) {
             // Safety: never send commands or click slots while a GUI is open.
             stop(Component.translatable("message.donuttweks.autosell.status.gui"));
             return;
@@ -176,125 +204,257 @@ public final class AutoSellController {
             return;
         }
 
-        if (cooldown > 0) {
-            cooldown--;
-            return;
-        }
-
         Inventory inventory = player.getInventory();
+        AbstractContainerMenu menu = player.inventoryMenu;
+        int selected = inventory.getSelectedSlot();
         ItemStack hand = inventory.getSelectedItem();
+        ItemStack carried = menu.getCarried();
 
-        if (waitingForResult) {
-            handlePendingSell(inventory, hand);
+        // Splitting needs the cursor. Only our own split may leave something there.
+        if (splitPhase != 0) {
+            tickSplit(client, player, inventory, carried);
+            return;
+        }
+        if (!carried.isEmpty()) {
+            if (splitSource >= 0) {
+                // Leftover from a split: put it back into its source slot.
+                click(client, player, menuSlot(splitSource), 0, false);
+            }
             return;
         }
 
+        // 1. Did the last sell command work? If so, continue on the very next tick.
+        if (waitingForResult) {
+            boolean sold = hand.isEmpty()
+                    || hand.getItem() != targetItem
+                    || hand.getCount() < handCountBefore;
+
+            if (sold) {
+                waitingForResult = false;
+                sellRetries = 0;
+                soldStacks++;
+                clickRetries = 0;
+                status = Component.translatable("message.donuttweks.autosell.status.sold", soldStacks);
+                return;
+            }
+
+            if (--timeout > 0) {
+                return;
+            }
+
+            // The server did not react (yet): repeat the command instead of aborting.
+            sellRetries++;
+            DonutTweks.LOGGER.info("Auto-Sell: no inventory change after sell command, repeating (try #{})",
+                    sellRetries);
+            handCountBefore = hand.getCount();
+            sendSell(client);
+            timeout = SELL_RETRY_TICKS;
+            return;
+        }
+
+        // 2. Waiting for an inventory click to arrive from the server.
         if (waitingForSwap) {
-            if (hand.getItem() == targetItem) {
-                // The server applied the swap, the hand now holds the target stack.
+            boolean arrived = swapWantsEmptyHand ? hand.isEmpty() : hand.getItem() == targetItem;
+            if (arrived) {
                 waitingForSwap = false;
-                cooldown = SWAP_SETTLE_TICKS;
+                clickRetries = 0;
+            } else if (--timeout > 0) {
+                return;
+            } else {
+                waitingForSwap = false;
+            }
+        }
+
+        // 3. The hand holds the target item: sell it right now.
+        if (hand.getItem() == targetItem) {
+            if (autoSplit && hand.getCount() > itemsPerAuction) {
+                int empty = findEmptySlot(inventory, selected);
+                if (empty >= 0) {
+                    // Move the oversized stack out of the way, then split it properly.
+                    click(client, player, menuSlot(empty), selected, true);
+                    waitingForSwap = true;
+                    swapWantsEmptyHand = true;
+                    timeout = CLICK_TIMEOUT_TICKS;
+                    return;
+                }
+                // No free slot to split into: sell the stack as it is.
+            }
+
+            if (!autoSell) {
+                finish();
+                return;
+            }
+
+            handCountBefore = hand.getCount();
+            sendSell(client);
+            waitingForResult = true;
+            timeout = SELL_RETRY_TICKS;
+            status = Component.translatable("message.donuttweks.autosell.status.selling", targetName, price);
+            return;
+        }
+
+        // 4. Nothing left to sell?
+        if (countItems(inventory, targetItem) <= 0) {
+            finish();
+            return;
+        }
+
+        int source = findBestTargetSlot(inventory, selected);
+        if (source < 0) {
+            finish();
+            return;
+        }
+
+        // 5. Split an oversized stack down to the configured auction size.
+        if (autoSplit && hand.isEmpty() && inventory.getItem(source).getCount() > itemsPerAuction) {
+            startSplit(client, player, source);
+            return;
+        }
+
+        // 6. Move the whole stack into the hand.
+        if (clickRetries++ >= MAX_CLICK_RETRIES) {
+            stop(Component.translatable("message.donuttweks.autosell.status.swap_failed"));
+            return;
+        }
+        status = Component.translatable("message.donuttweks.autosell.status.moving", targetName);
+        click(client, player, menuSlot(source), selected, true);
+        waitingForSwap = true;
+        swapWantsEmptyHand = false;
+        timeout = CLICK_TIMEOUT_TICKS;
+    }
+
+    // ------------------------------------------------------------------
+    // Splitting
+    // ------------------------------------------------------------------
+
+    private void startSplit(Minecraft client, LocalPlayer player, int source) {
+        this.splitSource = source;
+        this.splitPhase = 1;
+        this.splitClicksRemaining = this.itemsPerAuction;
+        this.clickRetries = 0;
+        this.timeout = CLICK_TIMEOUT_TICKS;
+        this.status = Component.translatable("message.donuttweks.autosell.status.moving", targetName);
+        // Pick up the whole stack, the single items are placed on the next ticks.
+        click(client, player, menuSlot(source), 0, false);
+    }
+
+    private void tickSplit(Minecraft client, LocalPlayer player, Inventory inventory, ItemStack carried) {
+        int selected = inventory.getSelectedSlot();
+
+        if (splitPhase == 1) {
+            if (!carried.isEmpty()) {
+                splitPhase = 2;
                 return;
             }
             if (--timeout > 0) {
                 return;
             }
-            // The swap did not arrive in time; fall through and try again.
-            waitingForSwap = false;
-        }
-
-        if (hand.getItem() != targetItem) {
-            if (countItems(inventory, targetItem) <= 0) {
-                finish();
+            if (clickRetries++ >= MAX_CLICK_RETRIES) {
+                resetSplit();
                 return;
             }
-            if (moveToHand(client, player, inventory)) {
-                timeout = SWAP_TIMEOUT_TICKS;
-            }
+            timeout = CLICK_TIMEOUT_TICKS;
+            click(client, player, menuSlot(splitSource), 0, false);
             return;
         }
 
-        // The hand holds the target item: sell it.
-        handCountBefore = hand.getCount();
-        swapAttempts = 0;
-        status = Component.translatable("message.donuttweks.autosell.status.selling", targetName, price);
-        client.getConnection().sendCommand("ah sell " + price);
-        waitingForResult = true;
-        timeout = SELL_TIMEOUT_TICKS;
+        if (splitPhase == 2) {
+            if (carried.isEmpty()) {
+                // Nothing left to place, the hand already has its items.
+                splitPhase = 3;
+                clickRetries = 0;
+                timeout = SPLIT_RETURN_TIMEOUT_TICKS;
+                return;
+            }
+            if (splitClicksRemaining > 0) {
+                splitClicksRemaining--;
+                click(client, player, menuSlot(selected), 1, false);
+                return;
+            }
+            // Hand is filled: return the remainder to the source slot.
+            splitPhase = 3;
+            clickRetries = 0;
+            timeout = SPLIT_RETURN_TIMEOUT_TICKS;
+            click(client, player, menuSlot(splitSource), 0, false);
+            return;
+        }
+
+        // Phase 3: wait until the cursor is empty again.
+        if (carried.isEmpty()) {
+            resetSplit();
+            return;
+        }
+        if (--timeout > 0) {
+            return;
+        }
+        if (clickRetries++ >= MAX_CLICK_RETRIES) {
+            resetSplit();
+            return;
+        }
+        timeout = SPLIT_RETURN_TIMEOUT_TICKS;
+        click(client, player, menuSlot(splitSource), 0, false);
     }
 
-    private void handlePendingSell(Inventory inventory, ItemStack hand) {
-        boolean changed = hand.getItem() != targetItem || hand.getCount() < handCountBefore;
+    private void resetSplit() {
+        this.splitPhase = 0;
+        this.splitSource = -1;
+        this.splitClicksRemaining = 0;
+        this.clickRetries = 0;
+    }
 
-        if (changed) {
-            waitingForResult = false;
-            soldStacks++;
-            batchSold++;
-            swapAttempts = 0;
-            status = Component.translatable("message.donuttweks.autosell.status.sold", soldStacks);
+    // ------------------------------------------------------------------
+    // Helpers
+    // ------------------------------------------------------------------
 
-            if (countItems(inventory, targetItem) <= 0) {
-                finish();
-                return;
+    private void sendSell(Minecraft client) {
+        client.getConnection().sendCommand("ah sell " + price);
+    }
+
+    private static void click(Minecraft client, LocalPlayer player, int slot, int button, boolean swap) {
+        AbstractContainerMenu menu = player.inventoryMenu;
+        //? if >=26.1 {
+        client.gameMode.handleContainerInput(menu.containerId, slot, button,
+                swap ? ContainerInput.SWAP : ContainerInput.PICKUP, player);
+        //?} else {
+        /*client.gameMode.handleInventoryMouseClick(menu.containerId, slot, button,
+                swap ? ClickType.SWAP : ClickType.PICKUP, player);
+        *///?}
+    }
+
+    private static int menuSlot(int inventorySlot) {
+        return inventorySlot < 9 ? 36 + inventorySlot : inventorySlot;
+    }
+
+    private static int findEmptySlot(Inventory inventory, int excluded) {
+        for (int i = 0; i < 36; i++) {
+            if (i != excluded && inventory.getItem(i).isEmpty()) {
+                return i;
             }
-
-            if (batchSold >= stacksPerBatch) {
-                batchSold = 0;
-                cooldown = Math.max(intervalTicks, BATCH_PAUSE_TICKS);
-            } else {
-                cooldown = intervalTicks;
-            }
-            return;
         }
-
-        if (--timeout <= 0) {
-            stop(Component.translatable("message.donuttweks.autosell.status.no_response"));
-        }
+        return -1;
     }
 
     /**
-     * Swaps the next matching stack into the currently selected hotbar slot.
-     * The swap is a normal inventory click, so the server performs it and both
-     * sides stay in sync. The selected slot itself is never changed.
-     *
-     * @return {@code true} if a click was sent
+     * Picks the next stack to sell. Small stacks come first, and with auto-split
+     * enabled stacks that fit into one auction are preferred so fewer clicks are needed.
      */
-    private boolean moveToHand(Minecraft client, LocalPlayer player, Inventory inventory) {
-        int selected = inventory.getSelectedSlot();
-        int source = -1;
+    private int findBestTargetSlot(Inventory inventory, int excluded) {
+        int best = -1;
+        int bestScore = Integer.MAX_VALUE;
 
         for (int i = 0; i < 36; i++) {
             ItemStack stack = inventory.getItem(i);
-            if (!stack.isEmpty() && stack.getItem() == targetItem && i != selected) {
-                source = i;
-                break;
+            if (i == excluded || stack.isEmpty() || stack.getItem() != targetItem) {
+                continue;
+            }
+            int count = stack.getCount();
+            int score = (autoSplit && count > itemsPerAuction) ? count + 1_000 : count;
+            if (score < bestScore) {
+                bestScore = score;
+                best = i;
             }
         }
-
-        if (source < 0) {
-            // Nothing left to swap even though the inventory still counts items.
-            stop(Component.translatable("message.donuttweks.autosell.status.swap_failed"));
-            return false;
-        }
-
-        if (swapAttempts++ >= MAX_SWAP_ATTEMPTS) {
-            stop(Component.translatable("message.donuttweks.autosell.status.swap_failed"));
-            return false;
-        }
-
-        AbstractContainerMenu menu = player.inventoryMenu;
-        // Hotbar slots are 36-44 in the player menu, main inventory slots are 9-35.
-        int menuSlot = source < 9 ? 36 + source : source;
-
-        //? if >=26.1 {
-        client.gameMode.handleContainerInput(menu.containerId, menuSlot, selected, ContainerInput.SWAP, player);
-        //?} else {
-        /*client.gameMode.handleInventoryMouseClick(menu.containerId, menuSlot, selected, ClickType.SWAP, player);
-        *///?}
-
-        status = Component.translatable("message.donuttweks.autosell.status.moving", targetName);
-        waitingForSwap = true;
-        return true;
+        return best;
     }
 
     private static boolean hasOpenScreen(Minecraft client) {
@@ -302,6 +462,14 @@ public final class AutoSellController {
         return client.gui.screen() != null;
         //?} else {
         /*return client.screen != null;
+        *///?}
+    }
+
+    private static boolean isAutoSellScreen(Minecraft client) {
+        //? if >=26.2 {
+        return client.gui.screen() instanceof de.xmoddevx.donuttweks.client.gui.AutoSellScreen;
+        //?} else {
+        /*return client.screen instanceof de.xmoddevx.donuttweks.client.gui.AutoSellScreen;
         *///?}
     }
 

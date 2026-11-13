@@ -25,8 +25,8 @@ import java.util.Map;
 /**
  * Configuration screen for the auto seller.
  *
- * <p>Pick one item type from the inventory, enter a price and how many stacks
- * are sold per batch, then press "Start". The screen closes and
+ * <p>Pick one item type from the inventory, enter a price and items per auction,
+ * then press "Start". The screen closes and
  * {@link AutoSellController} starts sending {@code /ah sell <price>}.</p>
  */
 public class AutoSellScreen extends Screen {
@@ -47,11 +47,11 @@ public class AutoSellScreen extends Screen {
 
     private EditBox priceField;
     private EditBox stacksField;
-    private EditBox intervalField;
 
     private String priceText = "1000";
-    private String stacksText = "1";
-    private String intervalText = "1";
+    private String stacksText = "64";
+    private boolean autoSplitEnabled = true;
+    private boolean autoSellEnabled = true;
 
     private int listX;
     private int listY;
@@ -176,33 +176,35 @@ public class AutoSellScreen extends Screen {
 
         stacksField = new EditBox(this.font, panelX, listY + 56, panelWidth, 20,
                 Component.translatable("screen.donuttweks.autosell.stacks"));
-        stacksField.setMaxLength(3);
+        stacksField.setMaxLength(2);
         stacksField.setValue(stacksText);
         stacksField.setResponder(value -> stacksText = value);
         addRenderableWidget(stacksField);
 
-        intervalField = new EditBox(this.font, panelX, listY + 98, panelWidth, 20,
-                Component.translatable("screen.donuttweks.autosell.interval"));
-        intervalField.setMaxLength(3);
-        intervalField.setValue(intervalText);
-        intervalField.setResponder(value -> intervalText = value);
-        addRenderableWidget(intervalField);
-
         int half = (panelWidth - 4) / 2;
+
+        addRenderableWidget(Button.builder(toggleLabel("screen.donuttweks.autosell.auto_split", autoSplitEnabled), button -> {
+                    autoSplitEnabled = !autoSplitEnabled;
+                    button.setMessage(toggleLabel("screen.donuttweks.autosell.auto_split", autoSplitEnabled));
+                }).bounds(panelX, listY + 88, half, 20).build());
+        addRenderableWidget(Button.builder(toggleLabel("screen.donuttweks.autosell.auto_sell", autoSellEnabled), button -> {
+                    autoSellEnabled = !autoSellEnabled;
+                    button.setMessage(toggleLabel("screen.donuttweks.autosell.auto_sell", autoSellEnabled));
+                }).bounds(panelX + half + 4, listY + 88, half, 20).build());
 
         addRenderableWidget(Button.builder(Component.translatable("screen.donuttweks.autosell.start"),
                         button -> startSelling())
-                .bounds(panelX, listY + 130, half, 20)
+                .bounds(panelX, listY + 114, half, 20)
                 .build());
 
         addRenderableWidget(Button.builder(Component.translatable("screen.donuttweks.autosell.stop"),
                         button -> AutoSellController.get().stop())
-                .bounds(panelX + half + 4, listY + 130, half, 20)
+                .bounds(panelX + half + 4, listY + 114, half, 20)
                 .build());
 
         addRenderableWidget(Button.builder(Component.translatable("screen.donuttweks.autosell.close"),
                         button -> onClose())
-                .bounds(panelX, listY + 156, panelWidth, 20)
+                .bounds(panelX, listY + 140, panelWidth, 20)
                 .build());
     }
 
@@ -216,8 +218,8 @@ public class AutoSellScreen extends Screen {
     private void startSelling() {
         hint = null;
 
-        DonutTweks.LOGGER.info("Auto-Sell start pressed: item={}, price='{}', stacks='{}', interval='{}'",
-                selectedName, priceText, stacksText, intervalText);
+        DonutTweks.LOGGER.info("Auto-Sell start pressed: item={}, price='{}', itemsPerAuction='{}', autoSplit={}, autoSell={}",
+                selectedName, priceText, stacksText, autoSplitEnabled, autoSellEnabled);
 
         if (selectedItem == null) {
             reject("screen.donuttweks.autosell.invalid_item", "no item selected");
@@ -235,10 +237,14 @@ public class AutoSellScreen extends Screen {
             return;
         }
 
-        int stacks = Math.max(1, parseInt(stacksText, 1));
-        int seconds = Math.max(1, parseInt(intervalText, 1));
+        int stacks = parseInt(stacksText, -1);
+        if (stacks < 1 || stacks > 64) {
+            reject("screen.donuttweks.autosell.invalid_stack_size", "invalid items per auction: " + stacksText);
+            return;
+        }
 
-        AutoSellController.get().start(selectedItem, selectedName, price, stacks, seconds * 20);
+        AutoSellController.get().start(selectedItem, selectedName, price, stacks,
+                autoSplitEnabled, autoSellEnabled);
         onClose();
     }
 
@@ -257,10 +263,15 @@ public class AutoSellScreen extends Screen {
         }
     }
 
+    private static Component toggleLabel(String key, boolean enabled) {
+        return Component.translatable(key, Component.translatable(enabled
+                ? "screen.donuttweks.autosell.enabled" : "screen.donuttweks.autosell.disabled"));
+    }
+
     /**
-     * Parses a price the way players usually type it: {@code 35000}, {@code 35k},
-     * {@code 1.2m} or {@code 3b}. The notation is kept for the command, because
-     * auction house plugins understand the suffix best.
+     * Parses a price the way players type it into the auction house: {@code 35000},
+     * {@code 35k}, {@code 1.2m} or {@code 3b}. The suffix notation is kept, because
+     * that is what the server accepts (verified in-game: {@code /ah sell 20k}).
      *
      * @return the normalized price argument, or {@code null} if it is not a positive price
      */
@@ -366,9 +377,7 @@ public class AutoSellScreen extends Screen {
         text(graphics, Component.translatable("screen.donuttweks.autosell.price"),
                 panelX, listY + 2, 0xA0A0A0);
         text(graphics, Component.translatable("screen.donuttweks.autosell.stacks"),
-                panelX, listY + 44, 0xA0A0A0);
-        text(graphics, Component.translatable("screen.donuttweks.autosell.interval"),
-                panelX, listY + 86, 0xA0A0A0);
+                panelX, listY + 39, 0xA0A0A0);
 
         int navY = listY + ROWS * CELL_HEIGHT + 6;
         String pageLabel = Component.translatable("screen.donuttweks.autosell.page", page + 1).getString();

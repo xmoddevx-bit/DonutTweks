@@ -4,9 +4,13 @@
   "key.donuttweks.auto_sell": "Auto-Sell (Auction House)",
   "screen.donuttweks.autosell.title": "Auto-Sell",
   "screen.donuttweks.autosell.items": "Items in your inventory",
-  "screen.donuttweks.autosell.price": "Price per stack",
-  "screen.donuttweks.autosell.stacks": "Stacks per batch",
-  "screen.donuttweks.autosell.interval": "Interval (seconds)",
+  "screen.donuttweks.autosell.price": "Price per auction",
+  "screen.donuttweks.autosell.stacks": "Items per auction (1-64)",
+  "screen.donuttweks.autosell.auto_split": "Split: %s",
+  "screen.donuttweks.autosell.auto_sell": "Sell: %s",
+  "screen.donuttweks.autosell.enabled": "ON",
+  "screen.donuttweks.autosell.disabled": "OFF",
+  "screen.donuttweks.autosell.invalid_stack_size": "Stack size must be between 1 and 64",
   "screen.donuttweks.autosell.start": "Start",
   "screen.donuttweks.autosell.stop": "Stop",
   "screen.donuttweks.autosell.refresh": "Refresh",
@@ -24,6 +28,6 @@
   "message.donuttweks.autosell.status.done": "[AutoSell] Done - %s stacks sold",
   "message.donuttweks.autosell.status.gui": "[AutoSell] A screen was opened, auto-selling stopped",
   "message.donuttweks.autosell.status.left_world": "[AutoSell] World left, auto-selling stopped",
-  "message.donuttweks.autosell.status.no_response": "[AutoSell] No server response, command aborted",
-  "message.donuttweks.autosell.status.swap_failed": "[AutoSell] Could not move the item into your hand"
+  "message.donuttweks.autosell.status.swap_failed": "[AutoSell] Could not move the item into your hand",
+  "message.donuttweks.autosell.status.no_space": "[AutoSell] No free inventory slot available for safe splitting"
 }

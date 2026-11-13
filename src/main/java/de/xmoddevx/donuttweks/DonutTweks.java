@@ -15,8 +15,10 @@ public class DonutTweks implements ModInitializer {
     public static final String MOD_ID = "donuttweks";
     public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
 
-    // Replaced by Stonecutter at build time (see stonecutter.gradle.kts)
-    public static final String VERSION = /*$ mod_version*/ "0.1.0";
+    // Replaced by Stonecutter at build time (see stonecutter.gradle.kts).
+    // The active version compiles this file directly, so keep the literal in sync
+    // with mod.version in stonecutter.properties.toml.
+    public static final String VERSION = /*$ mod_version*/ "0.1.2";
     public static final String MINECRAFT = /*$ minecraft*/ "26.3";
 
     @Override

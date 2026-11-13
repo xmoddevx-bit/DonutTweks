@@ -47,7 +47,7 @@ public class DonutTweksClient implements ClientModInitializer {
                 AutoSellController controller = AutoSellController.get();
 
                 if (controller.isRunning()) {
-                    controller.stop();
+                    client.setScreenAndShow(new AutoSellScreen());
                 } else if (client.player != null) {
                     client.setScreenAndShow(new AutoSellScreen());
                 }

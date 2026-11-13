@@ -4,9 +4,13 @@
   "key.donuttweks.auto_sell": "Auto-Verkauf (Auktionshaus)",
   "screen.donuttweks.autosell.title": "Auto-Verkauf",
   "screen.donuttweks.autosell.items": "Items im Inventar",
-  "screen.donuttweks.autosell.price": "Preis pro Stack",
-  "screen.donuttweks.autosell.stacks": "Stacks pro Durchgang",
-  "screen.donuttweks.autosell.interval": "Intervall (Sekunden)",
+  "screen.donuttweks.autosell.price": "Preis pro Auktion",
+  "screen.donuttweks.autosell.stacks": "Items pro Auktion (1-64)",
+  "screen.donuttweks.autosell.auto_split": "Aufteilen: %s",
+  "screen.donuttweks.autosell.auto_sell": "Verkaufen: %s",
+  "screen.donuttweks.autosell.enabled": "AN",
+  "screen.donuttweks.autosell.disabled": "AUS",
+  "screen.donuttweks.autosell.invalid_stack_size": "Stackgröße muss zwischen 1 und 64 liegen",
   "screen.donuttweks.autosell.start": "Starten",
   "screen.donuttweks.autosell.stop": "Stoppen",
   "screen.donuttweks.autosell.refresh": "Aktualisieren",
@@ -24,6 +28,6 @@
   "message.donuttweks.autosell.status.done": "[AutoSell] Fertig - %s Stacks verkauft",
   "message.donuttweks.autosell.status.gui": "[AutoSell] Ein GUI wurde ge\u00f6ffnet, Auto-Verkauf gestoppt",
   "message.donuttweks.autosell.status.left_world": "[AutoSell] Welt verlassen, Auto-Verkauf gestoppt",
-  "message.donuttweks.autosell.status.no_response": "[AutoSell] Keine Server-Antwort, Befehl abgebrochen",
-  "message.donuttweks.autosell.status.swap_failed": "[AutoSell] Item konnte nicht in die Hand gelegt werden"
+  "message.donuttweks.autosell.status.swap_failed": "[AutoSell] Item konnte nicht in die Hand gelegt werden",
+  "message.donuttweks.autosell.status.no_space": "[AutoSell] Kein freier Inventarplatz zum sicheren Aufteilen"
 }
