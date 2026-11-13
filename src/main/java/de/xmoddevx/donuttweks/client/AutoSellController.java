@@ -6,6 +6,8 @@ import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.inventory.AbstractContainerMenu;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 //? if >=26.1 {
@@ -38,8 +40,10 @@ public final class AutoSellController {
 
     /** Ticks to wait for the server to confirm an inventory click before retrying it. */
     private static final int CLICK_TIMEOUT_TICKS = 20;
-    /** Ticks before an unanswered sell command is repeated. */
+    /** Wait briefly for a command result before trying the held-item right-click. */
     private static final int SELL_RETRY_TICKS = 20;
+    /** Time to wait for the command or right-click to remove the listing stack. */
+    private static final int SELL_RESULT_TIMEOUT_TICKS = 100;
     /** How often a single click may be retried before the controller gives up on it. */
     private static final int MAX_CLICK_RETRIES = 8;
 
@@ -50,6 +54,7 @@ public final class AutoSellController {
     private int itemsPerAuction = 64;
     private boolean autoSplit = true;
     private boolean autoSell = true;
+    private boolean autoRightClick = true;
 
     private int timeout;
     private int clickRetries;
@@ -57,6 +62,7 @@ public final class AutoSellController {
     private boolean swapWantsEmptyHand;
     private boolean waitingForResult;
     private int handCountBefore;
+    private boolean rightClickSent;
     private int sellRetries;
     private int soldStacks;
 
@@ -113,15 +119,18 @@ public final class AutoSellController {
      * @param itemsPerAuction how many items each auction should contain (1-64)
      * @param autoSplit       split bigger stacks down to {@code itemsPerAuction}
      * @param autoSell        actually send the sell command (off = only prepare the hand)
+     * @param autoRightClick  right-click the held item once when a sell command is not
+     *                        consumed by the server
      */
     public void start(Item item, String name, String price, int itemsPerAuction,
-                      boolean autoSplit, boolean autoSell) {
+                      boolean autoSplit, boolean autoSell, boolean autoRightClick) {
         this.targetItem = item;
         this.targetName = name;
         this.price = price;
         this.itemsPerAuction = Math.max(1, Math.min(64, itemsPerAuction));
         this.autoSplit = autoSplit;
         this.autoSell = autoSell;
+        this.autoRightClick = autoRightClick;
 
         this.running = true;
         this.timeout = 0;
@@ -129,6 +138,7 @@ public final class AutoSellController {
         this.waitingForSwap = false;
         this.swapWantsEmptyHand = false;
         this.waitingForResult = false;
+        this.rightClickSent = false;
         this.sellRetries = 0;
         this.soldStacks = 0;
         resetSplit();
@@ -138,8 +148,8 @@ public final class AutoSellController {
         this.status = Component.translatable("message.donuttweks.autosell.status.selling", name, price);
 
         DonutTweks.LOGGER.info(
-                "Auto-Sell started: item={}, price={}, itemsPerAuction={}, autoSplit={}, autoSell={}",
-                name, price, this.itemsPerAuction, autoSplit, autoSell);
+                "Auto-Sell started: item={}, price={}, itemsPerAuction={}, autoSplit={}, autoSell={}, autoRightClick={}",
+                name, price, this.itemsPerAuction, autoSplit, autoSell, autoRightClick);
 
         Minecraft client = Minecraft.getInstance();
         DonutTweks.LOGGER.info(
@@ -290,18 +300,31 @@ public final class AutoSellController {
                 return;
             }
 
-            // The server did not react (yet): repeat the command instead of aborting.
-            sellRetries++;
-            DonutTweks.LOGGER.info("Auto-Sell: no inventory change after sell command, repeating (try #{})",
-                    sellRetries);
-            if (sellRetries == 10) {
-                // One-shot probe: if the server answers /ah at all, commands work and
-                // only the sell command itself is ignored.
-                DonutTweks.LOGGER.info("Auto-Sell: probing /ah to check whether commands are accepted");
-                sendMessage(Component.translatable("message.donuttweks.autosell.status.probe"));
-                client.getConnection().sendCommand("ah");
+            if (autoRightClick && !rightClickSent) {
+                // Some server auction plugins only list the item when it is used/right-
+                // clicked. Send that through the game interaction API, so no physical
+                // mouse click is needed. Skipped for items that would be consumed by a
+                // use (food), because that would look like a successful sale.
+                if (isSafeToUse(hand)) {
+                    rightClickSent = true;
+                    DonutTweks.LOGGER.info(
+                            "Auto-Sell: command did not consume the stack; sending held-item right-click");
+                    status = Component.translatable("message.donuttweks.autosell.status.right_click");
+                    client.gameMode.useItem(player, InteractionHand.MAIN_HAND);
+                    timeout = SELL_RESULT_TIMEOUT_TICKS;
+                    return;
+                }
+                rightClickSent = true;
+                DonutTweks.LOGGER.info("Auto-Sell: not right-clicking {} because using it would consume it",
+                        hand.getItem().getDescriptionId());
             }
-            if (sellRetries == 15) {
+
+            // Still nothing: repeat the command instead of aborting. The server may
+            // simply be slow, and commands are cheap.
+            sellRetries++;
+            DonutTweks.LOGGER.info("Auto-Sell: no inventory change yet, repeating the sell command (try #{})",
+                    sellRetries);
+            if (sellRetries % 15 == 0) {
                 sendMessage(Component.translatable("message.donuttweks.autosell.status.waiting_server"));
             }
             handCountBefore = hand.getCount();
@@ -352,6 +375,7 @@ public final class AutoSellController {
             }
 
             handCountBefore = hand.getCount();
+            rightClickSent = false;
             sendSell(client);
             waitingForResult = true;
             timeout = SELL_RETRY_TICKS;
@@ -585,6 +609,15 @@ public final class AutoSellController {
         return !stack.isEmpty()
                 && stack.getItem() == carried.getItem()
                 && stack.getCount() + carried.getCount() <= stack.getMaxStackSize();
+    }
+
+    /**
+     * Right-clicking an item can consume it (food, potions, tools). That would look like
+     * a successful auction, so only block items are used: a right-click into the air
+     * does nothing for them, it sends no block placement and uses nothing up.
+     */
+    private static boolean isSafeToUse(ItemStack stack) {
+        return !stack.isEmpty() && stack.getItem() instanceof BlockItem;
     }
 
     /**

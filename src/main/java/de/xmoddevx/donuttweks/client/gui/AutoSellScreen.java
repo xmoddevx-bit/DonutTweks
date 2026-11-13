@@ -52,6 +52,7 @@ public class AutoSellScreen extends Screen {
     private String stacksText = "1";
     private boolean autoSplitEnabled = true;
     private boolean autoSellEnabled = true;
+    private boolean autoRightClickEnabled = true;
 
     private int listX;
     private int listY;
@@ -192,19 +193,27 @@ public class AutoSellScreen extends Screen {
                     button.setMessage(toggleLabel("screen.donuttweks.autosell.auto_sell", autoSellEnabled));
                 }).bounds(panelX + half + 4, listY + 88, half, 20).build());
 
+        addRenderableWidget(Button.builder(
+                        toggleLabel("screen.donuttweks.autosell.auto_right_click", autoRightClickEnabled), button -> {
+                            autoRightClickEnabled = !autoRightClickEnabled;
+                            button.setMessage(toggleLabel("screen.donuttweks.autosell.auto_right_click",
+                                    autoRightClickEnabled));
+                        })
+                .bounds(panelX, listY + 110, panelWidth, 20).build());
+
         addRenderableWidget(Button.builder(Component.translatable("screen.donuttweks.autosell.start"),
                         button -> startSelling())
-                .bounds(panelX, listY + 114, half, 20)
+                .bounds(panelX, listY + 134, half, 20)
                 .build());
 
         addRenderableWidget(Button.builder(Component.translatable("screen.donuttweks.autosell.stop"),
                         button -> AutoSellController.get().stop())
-                .bounds(panelX + half + 4, listY + 114, half, 20)
+                .bounds(panelX + half + 4, listY + 134, half, 20)
                 .build());
 
         addRenderableWidget(Button.builder(Component.translatable("screen.donuttweks.autosell.close"),
                         button -> onClose())
-                .bounds(panelX, listY + 140, panelWidth, 20)
+                .bounds(panelX, listY + 158, panelWidth, 20)
                 .build());
     }
 
@@ -218,8 +227,9 @@ public class AutoSellScreen extends Screen {
     private void startSelling() {
         hint = null;
 
-        DonutTweks.LOGGER.info("Auto-Sell start pressed: item={}, price='{}', itemsPerAuction='{}', autoSplit={}, autoSell={}",
-                selectedName, priceText, stacksText, autoSplitEnabled, autoSellEnabled);
+        DonutTweks.LOGGER.info(
+                "Auto-Sell start pressed: item={}, price='{}', itemsPerAuction='{}', autoSplit={}, autoSell={}, autoRightClick={}",
+                selectedName, priceText, stacksText, autoSplitEnabled, autoSellEnabled, autoRightClickEnabled);
 
         if (selectedItem == null) {
             reject("screen.donuttweks.autosell.invalid_item", "no item selected");
@@ -244,7 +254,7 @@ public class AutoSellScreen extends Screen {
         }
 
         AutoSellController.get().start(selectedItem, selectedName, price, stacks,
-                autoSplitEnabled, autoSellEnabled);
+                autoSplitEnabled, autoSellEnabled, autoRightClickEnabled);
         onClose();
     }
 

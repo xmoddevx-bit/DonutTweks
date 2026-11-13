@@ -89,10 +89,10 @@ Mit **R** (änderbar unter *Optionen → Steuerung → DonutTweks*) öffnest du 
    Ohne `k`/`m`/`b` sind nur reine Ziffern erlaubt (`35.000` wird abgelehnt, weil es sonst als `35`
    gelesen würde – nimm `35k`). Die Kurzschreibweise wird vor dem Senden in Ziffern umgerechnet
    (`20k` wird zu `20000`), damit der Server den Preis sicher als Zahl versteht.
-3. **Items pro Auktion** (1–64), **Auto-Split** und **Verkaufen** einstellen.
+3. **Items pro Auktion** (1–64), **Auto-Split**, **Verkaufen** und **Rechtsklick** einstellen.
    Bei aktivem Auto-Split werden volle Inventarstapel in entsprechend große Verkaufsstapel zerlegt –
    das macht die Mod komplett selbst, du musst dafür **nicht** rechtsklicken.
-4. **Starten** – das Fenster schließt sich und die Mod sendet wiederholt:
+4. **Starten** – das Fenster schließt sich und die Mod sendet:
 
 ```
 /ah sell <preis>
@@ -101,23 +101,25 @@ Mit **R** (änderbar unter *Optionen → Steuerung → DonutTweks*) öffnest du 
 Vor jedem Befehl wird der nächste passende Stack per Inventar-Klick in den aktuell ausgewählten
 Hotbar-Slot gelegt, damit das Auktionshaus-Plugin den richtigen Gegenstand in der Hand hat. Bei
 aktivem Auto-Split wird der übrige Stapel zurück ins Inventar gelegt. Jeder Klick wartet dabei auf die
-Bestätigung des Servers. Das läuft weiter, bis kein passendes Item mehr im
-Inventar liegt. Bei **Items pro Auktion = 1** werden zum Beispiel 64 Items nacheinander einzeln gelistet.
+Bestätigung des Servers. Das läuft weiter, bis kein passendes Item mehr im Inventar liegt. Bei
+**Items pro Auktion = 1** werden zum Beispiel 64 Items nacheinander einzeln gelistet.
 
 - **Es gibt keine Wartezeit zwischen den Verkäufen:** Sobald der Server den Stapel aus der Hand
-  entfernt hat, geht im nächsten Tick der nächste Befehl raus. Es gibt kein Intervall mehr.
-- Antwortet der Server gar nicht (Lag, Plugin hängt), wird der Befehl einfach wiederholt statt
-  abzubrechen. Der Lauf stoppt nur noch, wenn keine Items mehr da sind, die Welt verlassen wird,
-  ein Container-GUI aufgeht, sich das Item nicht in die Hand legen lässt oder zum Aufteilen kein
-  freier Inventarplatz mehr da ist (dann würde ein ganzer Stapel für einen Preis verkauft).
+  entfernt hat, geht im nächsten Tick der nächste Befehl raus.
+- Reagiert der Server nicht auf einen Verkaufsbefehl, wird der Befehl einfach wiederholt. Zusätzlich
+  kann die Mod das Item einmal automatisch rechtsklicken (Schalter **Rechtsklick**), falls das Plugin
+  das braucht. Bei *AUS* wird nie rechtsgeklickt. Nahrung wird grundsätzlich nicht automatisch benutzt.
+- Der Lauf stoppt nur, wenn keine Items mehr da sind, die Welt verlassen wird, ein Container-GUI
+  aufgeht, sich das Item nicht in die Hand legen lässt oder zum Aufteilen kein freier Inventarplatz
+  da ist (dann würde ein ganzer Stapel für einen Preis verkauft).
 - **R** öffnet während des Laufs das Einstellungsfenster; der *Stoppen*-Button beendet den Lauf.
-- **Auto-Split** im Fenster schaltet das Aufteilen an und aus. Bei *AUS* wird jeder Stapel so
-  verkauft, wie er im Inventar liegt – dann musst du die Stückzahl selbst im Blick behalten.
+- **Auto-Split** schaltet das Aufteilen an und aus. Bei *AUS* wird jeder Stapel so verkauft, wie er
+  im Inventar liegt – dann musst du die Stückzahl selbst im Blick behalten.
+- **Rechtsklick** schaltet den automatischen Rechtsklick auf das Item in der Hand an und aus
+  (Standard: *AN*).
 - Nur ein echtes **Container-GUI** (Kiste, Auktionshaus, Plugin-Menü) stoppt den Lauf, weil es das
   Inventar-Menü ersetzt. Inventar (`E`), Chat und Pause sind harmlos – du kannst beim Verkaufen
   zusehen. So wird nie blind durch Container geklickt.
-- Antwortet der Server 10 Sekunden lang auf keinen Befehl, schickt die Mod einmalig `/ah`, um zu
-  prüfen, ob Befehle überhaupt ankommen. Die Antwort steht im Log (`[AutoSell-Diag]`).
 - Standard: 1 Item pro Auktion (Preis `20k`), Auto-Split und Verkaufen aktiviert.
 - Lehnt das Fenster einen Start ab (kein Item gewählt, Item nicht mehr im Inventar, ungültiger
   Preis), erscheint der Grund rot im Fenster **und** im Chat.
@@ -125,8 +127,8 @@ Inventar liegt. Bei **Items pro Auktion = 1** werden zum Beispiel 64 Items nache
 Voraussetzungen und Grenzen:
 
 - Das Auktionshaus-Plugin muss `/ah sell <preis>` für den Gegenstand in der Hand unterstützen.
-- Öffnet das Plugin ein Bestätigungsfenster, bricht die Mod ab (siehe oben) – der Klick auf
-  "Bestätigen" müsste dann manuell erfolgen.
+- Ein Container-Bestätigungsfenster des Plugins wird nicht automatisch angeklickt; der Lauf stoppt,
+  weil dessen Inhalt serverabhängig ist.
 - Items werden über den Item-Typ erkannt. Verschiedene Varianten desselben Items (z. B. mit
   eigenem Namen) werden also gemeinsam verkauft.
 - **Wichtig:** Automatisierte Befehle/Makros sind auf vielen Servern verboten. Prüfe die Regeln
@@ -178,7 +180,7 @@ Mod-ID, Name, Gruppe und Version stehen in `stonecutter.properties.toml`:
 mod.id = "donuttweks"
 mod.name = "DonutTweks"
 mod.group = "de.xmoddevx.donuttweks"
-mod.version = "0.1.3"
+mod.version = "0.1.4"
 ```
 
 Danach ggf. das Package in `src/main/java` umbenennen und die Pfade in `fabric.mod.json`,
