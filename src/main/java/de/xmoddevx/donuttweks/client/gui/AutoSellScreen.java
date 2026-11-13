@@ -270,8 +270,8 @@ public class AutoSellScreen extends Screen {
 
     /**
      * Parses a price the way players type it into the auction house: {@code 35000},
-     * {@code 35k}, {@code 1.2m} or {@code 3b}. The suffix notation is kept, because
-     * that is what the server accepts (verified in-game: {@code /ah sell 20k}).
+     * {@code 35k}, {@code 1.2m} or {@code 3b}. Suffixes are expanded to plain digits
+     * before sending, e.g. {@code 20k} becomes {@code 20000}.
      *
      * @return the normalized price argument, or {@code null} if it is not a positive price
      */
@@ -286,16 +286,16 @@ public class AutoSellScreen extends Screen {
         }
 
         char suffix = value.charAt(value.length() - 1);
-        long multiplier = switch (suffix) {
-            case 'k' -> 1_000L;
-            case 'm' -> 1_000_000L;
-            case 'b' -> 1_000_000_000L;
-            default -> 1L;
+        int decimalShift = switch (suffix) {
+            case 'k' -> 3;
+            case 'm' -> 6;
+            case 'b' -> 9;
+            default -> 0;
         };
 
-        String number = multiplier == 1L ? value : value.substring(0, value.length() - 1);
+        String number = decimalShift == 0 ? value : value.substring(0, value.length() - 1);
 
-        if (multiplier == 1L) {
+        if (decimalShift == 0) {
             // Without a suffix only plain digits are accepted, so "35.000" is not
             // silently read as 35. Players who want 35,000 must type "35k".
             if (number.isEmpty()) {
@@ -330,18 +330,17 @@ public class AutoSellScreen extends Screen {
             }
         }
 
-        double parsed;
         try {
-            parsed = Double.parseDouble(number) * multiplier;
-        } catch (NumberFormatException exception) {
+            java.math.BigInteger amount = new java.math.BigDecimal(number)
+                    .movePointRight(decimalShift)
+                    .toBigIntegerExact();
+            if (amount.signum() <= 0) {
+                return null;
+            }
+            return amount.toString();
+        } catch (NumberFormatException | ArithmeticException exception) {
             return null;
         }
-
-        if (!(parsed > 0D) || Double.isInfinite(parsed)) {
-            return null;
-        }
-
-        return multiplier == 1L ? number : number + suffix;
     }
 
     private static String shorten(String value, int maxChars) {

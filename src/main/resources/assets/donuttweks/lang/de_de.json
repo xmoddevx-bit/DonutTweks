@@ -19,17 +19,18 @@
   "screen.donuttweks.autosell.empty": "Keine Items im Inventar gefunden",
   "screen.donuttweks.autosell.selected": "Ausgew\u00e4hlt: %s",
   "screen.donuttweks.autosell.invalid_item": "W\u00e4hle ein Item, das im Inventar liegt",
-  "screen.donuttweks.autosell.invalid_price": "Ung\u00fcltiger Preis - z. B. 35000, 35k, 1.2m (ohne k/m/b nur Ziffern)",
+  "screen.donuttweks.autosell.invalid_price": "Ung\u00fcltiger Preis - z. B. 35000, 35k, 1.2m",
   "message.donuttweks.autosell.stopped": "[AutoSell] Auto-Verkauf gestoppt",
   "message.donuttweks.autosell.status.ready": "Bereit",
   "message.donuttweks.autosell.status.selling": "Verkaufe %s f\u00fcr %s ...",
   "message.donuttweks.autosell.status.moving": "Lege %s in die Hand ...",
   "message.donuttweks.autosell.status.sold": "%s Auktionen verkauft",
   "message.donuttweks.autosell.status.done": "[AutoSell] Fertig - %s Auktionen verkauft",
-  "message.donuttweks.autosell.status.gui": "[AutoSell] Ein GUI wurde ge\u00f6ffnet, Auto-Verkauf gestoppt",
+  "message.donuttweks.autosell.status.gui": "[AutoSell] Ein Container wurde ge\u00f6ffnet, Auto-Verkauf gestoppt",
   "message.donuttweks.autosell.status.left_world": "[AutoSell] Welt verlassen, Auto-Verkauf gestoppt",
   "message.donuttweks.autosell.status.swap_failed": "[AutoSell] Item konnte nicht in die Hand gelegt werden",
   "message.donuttweks.autosell.status.no_space": "[AutoSell] Kein freier Inventarplatz zum sicheren Aufteilen",
   "message.donuttweks.autosell.status.waiting_server": "[AutoSell] Server reagiert nicht - Befehl wird weiter wiederholt (evtl. noch in der Queue?)",
-  "message.donuttweks.autosell.status.probe": "[AutoSell] Server antwortet nicht - teste einmalig /ah (Ergebnis steht im Log)"
+  "message.donuttweks.autosell.status.probe": "[AutoSell] Server antwortet nicht - teste einmalig /ah (Ergebnis steht im Log)",
+  "message.donuttweks.autosell.status.cursor_stuck": "[AutoSell] Konnte %sx %s nicht zur\u00fcck ins Inventar legen - gestoppt"
 }

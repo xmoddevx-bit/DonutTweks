@@ -19,17 +19,18 @@
   "screen.donuttweks.autosell.empty": "No items found in your inventory",
   "screen.donuttweks.autosell.selected": "Selected: %s",
   "screen.donuttweks.autosell.invalid_item": "Pick an item that is in your inventory",
-  "screen.donuttweks.autosell.invalid_price": "Invalid price - e.g. 35000, 35k, 1.2m (digits only without k/m/b)",
+  "screen.donuttweks.autosell.invalid_price": "Invalid price - e.g. 35000, 35k, 1.2m",
   "message.donuttweks.autosell.stopped": "[AutoSell] Auto-selling stopped",
   "message.donuttweks.autosell.status.ready": "Ready",
   "message.donuttweks.autosell.status.selling": "Selling %s for %s ...",
   "message.donuttweks.autosell.status.moving": "Moving %s into your hand ...",
   "message.donuttweks.autosell.status.sold": "%s auctions sold",
   "message.donuttweks.autosell.status.done": "[AutoSell] Done - %s auctions sold",
-  "message.donuttweks.autosell.status.gui": "[AutoSell] A screen was opened, auto-selling stopped",
+  "message.donuttweks.autosell.status.gui": "[AutoSell] A container was opened, auto-selling stopped",
   "message.donuttweks.autosell.status.left_world": "[AutoSell] World left, auto-selling stopped",
   "message.donuttweks.autosell.status.swap_failed": "[AutoSell] Could not move the item into your hand",
   "message.donuttweks.autosell.status.no_space": "[AutoSell] No free inventory slot available for safe splitting",
   "message.donuttweks.autosell.status.waiting_server": "[AutoSell] Server is not responding - repeating the command (still in the queue?)",
-  "message.donuttweks.autosell.status.probe": "[AutoSell] Server is not responding - testing /ah once (result is in the log)"
+  "message.donuttweks.autosell.status.probe": "[AutoSell] Server is not responding - testing /ah once (result is in the log)",
+  "message.donuttweks.autosell.status.cursor_stuck": "[AutoSell] Could not put %sx %s back into your inventory - stopped"
 }

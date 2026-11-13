@@ -87,8 +87,8 @@ Mit **R** (änderbar unter *Optionen → Steuerung → DonutTweks*) öffnest du 
 1. Item aus dem Inventar anklicken (das Item muss im Inventar liegen)
 2. **Preis pro Auktion** eintragen – ganze Zahlen oder Kurzschreibweise (`35000`, `35k`, `1.2m`, `3b`).
    Ohne `k`/`m`/`b` sind nur reine Ziffern erlaubt (`35.000` wird abgelehnt, weil es sonst als `35`
-   gelesen würde – nimm `35k`). Die Schreibweise wird **genau so** gesendet, wie du sie eintippst
-   (`20k` bleibt `20k`), weil der Server diese Form direkt akzeptiert.
+   gelesen würde – nimm `35k`). Die Kurzschreibweise wird vor dem Senden in Ziffern umgerechnet
+   (`20k` wird zu `20000`), damit der Server den Preis sicher als Zahl versteht.
 3. **Items pro Auktion** (1–64), **Aufteilen** und **Verkaufen** einstellen.
    Bei aktivem Aufteilen werden volle Inventarstapel in entsprechend große Verkaufsstapel zerlegt.
 4. **Starten** – das Fenster schließt sich und die Mod sendet wiederholt:

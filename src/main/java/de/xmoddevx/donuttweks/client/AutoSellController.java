@@ -29,8 +29,9 @@ import net.minecraft.world.inventory.ContainerInput;
  * controller never aborts because of a slow server.</p>
  *
  * <p>Everything runs on the client thread from the client tick event. The controller
- * stops as soon as the player opens any screen (chat, inventory or a plugin
- * confirmation GUI) so it never clicks through GUIs blindly.</p>
+ * stops as soon as the player opens a real container GUI (chest, auction house, plugin
+ * menu), because that replaces the inventory menu it clicks in. Chat, the inventory
+ * screen and the pause screen are harmless.</p>
  */
 public final class AutoSellController {
     private static final AutoSellController INSTANCE = new AutoSellController();
@@ -39,8 +40,6 @@ public final class AutoSellController {
     private static final int CLICK_TIMEOUT_TICKS = 20;
     /** Ticks before an unanswered sell command is repeated. */
     private static final int SELL_RETRY_TICKS = 20;
-    /** Ticks to wait for the cursor to empty again after returning a split remainder. */
-    private static final int SPLIT_RETURN_TIMEOUT_TICKS = 40;
     /** How often a single click may be retried before the controller gives up on it. */
     private static final int MAX_CLICK_RETRIES = 8;
 
@@ -65,7 +64,19 @@ public final class AutoSellController {
     private int splitSource = -1;
     /** 0 = idle, 1 = picking the stack up, 2 = placing single items, 3 = returning the remainder. */
     private int splitPhase;
-    private int splitClicksRemaining;
+    /** Hand count when the split started, so the placed amount can be measured. */
+    private int splitHandStart;
+    /** True while a split click is waiting for the server to apply it. */
+    private boolean splitClickPending;
+    private int splitClickTimeout;
+    private int splitHandSnapshot;
+    private int splitCarriedSnapshot;
+    private int splitRetries;
+    /** Throttles returning a leftover cursor stack into the inventory. */
+    private int cursorTimeout;
+    /** Item count of the leftover cursor stack, to notice when nothing changes. */
+    private int cursorSnapshot = -1;
+    private int cursorAttempts;
 
     private Component status = Component.translatable("message.donuttweks.autosell.status.ready");
 
@@ -119,9 +130,10 @@ public final class AutoSellController {
         this.waitingForResult = false;
         this.sellRetries = 0;
         this.soldStacks = 0;
-        this.splitSource = -1;
-        this.splitPhase = 0;
-        this.splitClicksRemaining = 0;
+        resetSplit();
+        this.cursorTimeout = 0;
+        this.cursorSnapshot = -1;
+        this.cursorAttempts = 0;
         this.status = Component.translatable("message.donuttweks.autosell.status.selling", name, price);
 
         DonutTweks.LOGGER.info(
@@ -154,8 +166,7 @@ public final class AutoSellController {
         this.running = false;
         this.waitingForResult = false;
         this.waitingForSwap = false;
-        this.splitPhase = 0;
-        this.splitSource = -1;
+        resetSplit();
         this.status = reason;
         DonutTweks.LOGGER.info("Auto-Sell stopped: {}", reason.getString());
         sendMessage(Minecraft.getInstance().player, reason);
@@ -166,8 +177,7 @@ public final class AutoSellController {
         this.running = false;
         this.waitingForResult = false;
         this.waitingForSwap = false;
-        this.splitPhase = 0;
-        this.splitSource = -1;
+        resetSplit();
         this.status = Component.translatable("message.donuttweks.autosell.status.done", sold);
         DonutTweks.LOGGER.info("Auto-Sell finished: {} auctions", sold);
         sendMessage(Minecraft.getInstance().player, this.status);
@@ -227,12 +237,38 @@ public final class AutoSellController {
             return;
         }
         if (!carried.isEmpty()) {
-            if (splitSource >= 0) {
-                // Leftover from a split: put it back into its source slot.
-                click(client, player, menuSlot(splitSource), 0, false);
+            // A leftover cursor stack blocks every other inventory click, so put it back
+            // before continuing. Throttled, because a click sent while the server is
+            // still processing the previous one is rejected and has to be repeated.
+            if (--cursorTimeout > 0) {
+                return;
+            }
+            cursorTimeout = CLICK_TIMEOUT_TICKS;
+            if (carried.getCount() == cursorSnapshot) {
+                cursorAttempts++;
+            } else {
+                cursorSnapshot = carried.getCount();
+                cursorAttempts = 0;
+            }
+            if (cursorAttempts > MAX_CLICK_RETRIES) {
+                // Nothing fits anywhere: the run cannot continue without losing items.
+                DonutTweks.LOGGER.info("Auto-Sell: cannot put the cursor stack ({}x {}) back into the inventory",
+                        carried.getCount(), carried.getItem().getDescriptionId());
+                stop(Component.translatable("message.donuttweks.autosell.status.cursor_stuck",
+                        carried.getCount(), carried.getHoverName()));
+                return;
+            }
+            int deposit = findDepositSlot(inventory, carried, splitSource, selected);
+            if (deposit >= 0) {
+                click(client, player, menuSlot(deposit), 0, false);
             }
             return;
         }
+
+        // The cursor is empty again: give the next sell attempt a clean slate.
+        cursorTimeout = 0;
+        cursorSnapshot = -1;
+        cursorAttempts = 0;
 
         // 1. Did the last sell command work? If so, continue on the very next tick.
         if (waitingForResult) {
@@ -283,6 +319,8 @@ public final class AutoSellController {
                 return;
             } else {
                 waitingForSwap = false;
+                DonutTweks.LOGGER.info("Auto-Sell: inventory click was not confirmed, retrying (try #{})",
+                        clickRetries + 1);
             }
         }
 
@@ -334,6 +372,7 @@ public final class AutoSellController {
 
         // 6. Move the whole stack into the hand.
         if (clickRetries++ >= MAX_CLICK_RETRIES) {
+            DonutTweks.LOGGER.info("Auto-Sell: could not move slot {} into the hotbar, stopping", source);
             stop(Component.translatable("message.donuttweks.autosell.status.swap_failed"));
             return;
         }
@@ -348,82 +387,118 @@ public final class AutoSellController {
     // Splitting
     // ------------------------------------------------------------------
 
+    /**
+     * Splits an oversized stack down to {@link #itemsPerAuction} items: the stack is
+     * picked up as a whole, single items are right-clicked into the selected hotbar
+     * slot and the remainder is put back.
+     *
+     * <p>Every click waits for the server to confirm it before the next one is sent.
+     * Clicking on while the server is still processing the previous click only gets
+     * the click rejected, because it still carries the old menu state id.</p>
+     */
     private void startSplit(Minecraft client, LocalPlayer player, int source) {
+        Inventory inventory = player.getInventory();
         this.splitSource = source;
         this.splitPhase = 1;
-        this.splitClicksRemaining = this.itemsPerAuction;
-        this.clickRetries = 0;
-        this.timeout = CLICK_TIMEOUT_TICKS;
+        this.splitHandStart = inventory.getSelectedItem().getCount();
+        this.splitClickPending = false;
+        this.splitRetries = 0;
+        this.splitClickTimeout = 0;
         this.status = Component.translatable("message.donuttweks.autosell.status.moving", targetName);
         DonutTweks.LOGGER.info("Auto-Sell: splitting slot {} ({} items) down to {}",
-                source, player.getInventory().getItem(source).getCount(), this.itemsPerAuction);
-        // Pick up the whole stack, the single items are placed on the next ticks.
-        click(client, player, menuSlot(source), 0, false);
+                source, inventory.getItem(source).getCount(), this.itemsPerAuction);
+        trySplitClick(client, player, menuSlot(source), 0);
     }
 
     private void tickSplit(Minecraft client, LocalPlayer player, Inventory inventory, ItemStack carried) {
-        int selected = inventory.getSelectedSlot();
+        if (splitSource < 0) {
+            resetSplit();
+            return;
+        }
 
+        ItemStack hand = inventory.getSelectedItem();
+
+        // Phase 1: pick the whole stack up into the cursor.
         if (splitPhase == 1) {
             if (!carried.isEmpty()) {
                 splitPhase = 2;
+                splitClickPending = false;
+                splitRetries = 0;
                 return;
             }
-            if (--timeout > 0) {
+            trySplitClick(client, player, menuSlot(splitSource), 0);
+            return;
+        }
+
+        // Phase 2: right-click single items into the hotbar slot.
+        if (splitPhase == 2) {
+            int placed = hand.getCount() - splitHandStart;
+            if (carried.isEmpty() || placed >= itemsPerAuction
+                    || hand.getCount() >= hand.getMaxStackSize() || carried.getItem() != targetItem) {
+                splitPhase = 3;
+                splitClickPending = false;
+                splitRetries = 0;
                 return;
             }
-            if (clickRetries++ >= MAX_CLICK_RETRIES) {
+            trySplitClick(client, player, menuSlot(inventory.getSelectedSlot()), 1);
+            return;
+        }
+
+        // Phase 3: put the remainder back into the inventory.
+        if (carried.isEmpty()) {
+            DonutTweks.LOGGER.info("Auto-Sell: split finished (hand now: {} items)", hand.getCount());
+            resetSplit();
+            return;
+        }
+        int deposit = findDepositSlot(inventory, carried, splitSource, inventory.getSelectedSlot());
+        if (deposit < 0) {
+            DonutTweks.LOGGER.info("Auto-Sell: no room for the split remainder, leaving it on the cursor");
+            resetSplit();
+            return;
+        }
+        trySplitClick(client, player, menuSlot(deposit), 0);
+    }
+
+    /**
+     * Sends one split click and waits until the server confirmed it. The controller
+     * remembers the hand and cursor counts before the click; as soon as either count
+     * changes, the click arrived. Only if nothing changes for {@link #CLICK_TIMEOUT_TICKS}
+     * is the same click sent again.
+     */
+    private void trySplitClick(Minecraft client, LocalPlayer player, int slot, int button) {
+        if (splitClickPending) {
+            boolean confirmed = player.getInventory().getSelectedItem().getCount() != splitHandSnapshot
+                    || player.inventoryMenu.getCarried().getCount() != splitCarriedSnapshot;
+            if (confirmed) {
+                splitClickPending = false;
+                splitRetries = 0;
+                return;
+            }
+            if (--splitClickTimeout > 0) {
+                return;
+            }
+            if (splitRetries++ >= MAX_CLICK_RETRIES) {
+                DonutTweks.LOGGER.info("Auto-Sell: split click on slot {} stayed unconfirmed, starting over", slot);
                 resetSplit();
                 return;
             }
-            timeout = CLICK_TIMEOUT_TICKS;
-            click(client, player, menuSlot(splitSource), 0, false);
-            return;
         }
 
-        if (splitPhase == 2) {
-            if (carried.isEmpty()) {
-                // Nothing left to place, the hand already has its items.
-                splitPhase = 3;
-                clickRetries = 0;
-                timeout = SPLIT_RETURN_TIMEOUT_TICKS;
-                return;
-            }
-            if (splitClicksRemaining > 0) {
-                splitClicksRemaining--;
-                click(client, player, menuSlot(selected), 1, false);
-                return;
-            }
-            // Hand is filled: return the remainder to the source slot.
-            splitPhase = 3;
-            clickRetries = 0;
-            timeout = SPLIT_RETURN_TIMEOUT_TICKS;
-            click(client, player, menuSlot(splitSource), 0, false);
-            return;
-        }
-
-        // Phase 3: wait until the cursor is empty again.
-        if (carried.isEmpty()) {
-            DonutTweks.LOGGER.info("Auto-Sell: split finished (hand now: {} items)", inventory.getSelectedItem().getCount());
-            resetSplit();
-            return;
-        }
-        if (--timeout > 0) {
-            return;
-        }
-        if (clickRetries++ >= MAX_CLICK_RETRIES) {
-            resetSplit();
-            return;
-        }
-        timeout = SPLIT_RETURN_TIMEOUT_TICKS;
-        click(client, player, menuSlot(splitSource), 0, false);
+        this.splitHandSnapshot = player.getInventory().getSelectedItem().getCount();
+        this.splitCarriedSnapshot = player.inventoryMenu.getCarried().getCount();
+        this.splitClickPending = true;
+        this.splitClickTimeout = CLICK_TIMEOUT_TICKS;
+        click(client, player, slot, button, false);
     }
 
     private void resetSplit() {
         this.splitPhase = 0;
         this.splitSource = -1;
-        this.splitClicksRemaining = 0;
-        this.clickRetries = 0;
+        this.splitClickPending = false;
+        this.splitClickTimeout = 0;
+        this.splitHandSnapshot = 0;
+        this.splitCarriedSnapshot = 0;
+        this.splitRetries = 0;
     }
 
     // ------------------------------------------------------------------
@@ -464,6 +539,45 @@ public final class AutoSellController {
             }
         }
         return -1;
+    }
+
+    /**
+     * Finds a slot for a stack that sits on the cursor: the preferred slot (the one the
+     * split came from) first, then any stack of the same item with enough room, then any
+     * empty slot. The hotbar slot that is being filled for the next auction is never
+     * used, otherwise the split would merge back into it.
+     *
+     * @return the inventory slot, or {@code -1} if there is no room at all
+     */
+    private static int findDepositSlot(Inventory inventory, ItemStack carried, int preferred, int excluded) {
+        if (preferred >= 0 && preferred != excluded) {
+            ItemStack stack = inventory.getItem(preferred);
+            if (stack.isEmpty() || mergesInto(stack, carried)) {
+                return preferred;
+            }
+        }
+
+        int empty = -1;
+        for (int i = 0; i < 36; i++) {
+            if (i == excluded) {
+                continue;
+            }
+            ItemStack stack = inventory.getItem(i);
+            if (mergesInto(stack, carried)) {
+                return i;
+            }
+            if (stack.isEmpty() && empty < 0) {
+                empty = i;
+            }
+        }
+        return empty;
+    }
+
+    /** {@code true} if the carried stack fits completely into the given slot stack. */
+    private static boolean mergesInto(ItemStack stack, ItemStack carried) {
+        return !stack.isEmpty()
+                && stack.getItem() == carried.getItem()
+                && stack.getCount() + carried.getCount() <= stack.getMaxStackSize();
     }
 
     /**
