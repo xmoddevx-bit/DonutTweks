@@ -108,7 +108,8 @@ public final class AutoSellController {
      *
      * @param item            item type to sell
      * @param name            display name, used in the status messages
-     * @param price           price argument passed to {@code /ah sell}, kept exactly as typed (e.g. {@code 20k})
+     * @param price           price argument passed to {@code /ah sell}, already expanded to digits
+     *                        ({@code 20k} arrives as {@code 20000})
      * @param itemsPerAuction how many items each auction should contain (1-64)
      * @param autoSplit       split bigger stacks down to {@code itemsPerAuction}
      * @param autoSell        actually send the sell command (off = only prepare the hand)
