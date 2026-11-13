@@ -36,7 +36,7 @@ public class AutoSellScreen extends Screen {
     private static final int CELL_HEIGHT = 21;
     private static final int DEFAULT_PANEL_WIDTH = 176;
     private static final int MIN_PANEL_WIDTH = 140;
-    private static final int CONTENT_HEIGHT = 182;
+    private static final int CONTENT_HEIGHT = 196;
 
     private final List<Entry> entries = new ArrayList<>();
 
@@ -421,6 +421,9 @@ public class AutoSellScreen extends Screen {
             text(graphics, Component.translatable("screen.donuttweks.autosell.selected", selectedName),
                     listX, navY + 40, 0xFFFFFF);
         }
+
+        text(graphics, Component.translatable("screen.donuttweks.autosell.split_hint"),
+                listX, navY + 52, 0x808080);
     }
 
     private void text(Object graphics, Component text, int x, int y, int color) {
