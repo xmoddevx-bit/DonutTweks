@@ -5,6 +5,8 @@ import de.xmoddevx.donuttweks.DonutTweks;
 import de.xmoddevx.donuttweks.client.gui.AutoSellScreen;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
+import net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents;
+import net.fabricmc.fabric.api.client.message.v1.ClientSendMessageEvents;
 //? if >=26.1 {
 import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
 //?} else {
@@ -55,6 +57,13 @@ public class DonutTweksClient implements ClientModInitializer {
 
             AutoSellController.get().tick(client);
         });
+
+        // Diagnostic: show every command the client sends and every server chat line
+        // in the log, so auction-house problems can be tracked down.
+        ClientSendMessageEvents.COMMAND.register(command ->
+                DonutTweks.LOGGER.info("[AutoSell-Diag] command sent: /{}", command));
+        ClientReceiveMessageEvents.GAME.register((message, overlay) ->
+                DonutTweks.LOGGER.info("[AutoSell-Diag] chat: {}", message.getString()));
 
         DonutTweks.LOGGER.info("DonutTweks client initialized");
     }

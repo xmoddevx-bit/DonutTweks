@@ -127,6 +127,13 @@ public final class AutoSellController {
         DonutTweks.LOGGER.info(
                 "Auto-Sell started: item={}, price={}, itemsPerAuction={}, autoSplit={}, autoSell={}",
                 name, price, this.itemsPerAuction, autoSplit, autoSell);
+
+        Minecraft client = Minecraft.getInstance();
+        DonutTweks.LOGGER.info(
+                "Auto-Sell start context: connected={}, world={}, position={}",
+                client.getConnection() != null,
+                client.level != null,
+                client.player != null ? client.player.blockPosition().toString() : "no player");
     }
 
     /** Stops a running session (key binding or button). */
@@ -196,6 +203,7 @@ public final class AutoSellController {
 
         if (hasOpenScreen(client) && !isAutoSellScreen(client)) {
             // Safety: never send commands or click slots while a GUI is open.
+            DonutTweks.LOGGER.info("Auto-Sell stopped: a screen was opened ({})", screenName(client));
             stop(Component.translatable("message.donuttweks.autosell.status.gui"));
             return;
         }
@@ -246,6 +254,9 @@ public final class AutoSellController {
             sellRetries++;
             DonutTweks.LOGGER.info("Auto-Sell: no inventory change after sell command, repeating (try #{})",
                     sellRetries);
+            if (sellRetries == 15) {
+                sendMessage(Component.translatable("message.donuttweks.autosell.status.waiting_server"));
+            }
             handCountBefore = hand.getCount();
             sendSell(client);
             timeout = SELL_RETRY_TICKS;
@@ -334,6 +345,8 @@ public final class AutoSellController {
         this.clickRetries = 0;
         this.timeout = CLICK_TIMEOUT_TICKS;
         this.status = Component.translatable("message.donuttweks.autosell.status.moving", targetName);
+        DonutTweks.LOGGER.info("Auto-Sell: splitting slot {} ({} items) down to {}",
+                source, player.getInventory().getItem(source).getCount(), this.itemsPerAuction);
         // Pick up the whole stack, the single items are placed on the next ticks.
         click(client, player, menuSlot(source), 0, false);
     }
@@ -381,6 +394,7 @@ public final class AutoSellController {
 
         // Phase 3: wait until the cursor is empty again.
         if (carried.isEmpty()) {
+            DonutTweks.LOGGER.info("Auto-Sell: split finished (hand now: {} items)", inventory.getSelectedItem().getCount());
             resetSplit();
             return;
         }
@@ -407,6 +421,14 @@ public final class AutoSellController {
     // ------------------------------------------------------------------
 
     private void sendSell(Minecraft client) {
+        LocalPlayer player = client.player;
+        if (player != null) {
+            ItemStack hand = player.getInventory().getSelectedItem();
+            DonutTweks.LOGGER.info(
+                    "Auto-Sell: sending /ah sell {} (hand: {}x {} in slot {}, {} matching items left)",
+                    price, hand.getCount(), hand.getItem().getDescriptionId(),
+                    player.getInventory().getSelectedSlot(), countItems(player.getInventory(), targetItem));
+        }
         client.getConnection().sendCommand("ah sell " + price);
     }
 
@@ -463,6 +485,16 @@ public final class AutoSellController {
         //?} else {
         /*return client.screen != null;
         *///?}
+    }
+
+    /** Class name of the currently open screen, used by the diagnostics. */
+    private static String screenName(Minecraft client) {
+        //? if >=26.2 {
+        Object screen = client.gui.screen();
+        //?} else {
+        /*Object screen = client.screen;
+        *///?}
+        return screen == null ? "none" : screen.getClass().getName();
     }
 
     private static boolean isAutoSellScreen(Minecraft client) {

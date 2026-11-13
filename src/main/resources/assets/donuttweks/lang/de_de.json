@@ -29,5 +29,6 @@
   "message.donuttweks.autosell.status.gui": "[AutoSell] Ein GUI wurde ge\u00f6ffnet, Auto-Verkauf gestoppt",
   "message.donuttweks.autosell.status.left_world": "[AutoSell] Welt verlassen, Auto-Verkauf gestoppt",
   "message.donuttweks.autosell.status.swap_failed": "[AutoSell] Item konnte nicht in die Hand gelegt werden",
-  "message.donuttweks.autosell.status.no_space": "[AutoSell] Kein freier Inventarplatz zum sicheren Aufteilen"
+  "message.donuttweks.autosell.status.no_space": "[AutoSell] Kein freier Inventarplatz zum sicheren Aufteilen",
+  "message.donuttweks.autosell.status.waiting_server": "[AutoSell] Server reagiert nicht - Befehl wird weiter wiederholt (evtl. noch in der Queue?)"
 }

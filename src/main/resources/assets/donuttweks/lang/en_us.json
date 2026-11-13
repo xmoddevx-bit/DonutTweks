@@ -29,5 +29,6 @@
   "message.donuttweks.autosell.status.gui": "[AutoSell] A screen was opened, auto-selling stopped",
   "message.donuttweks.autosell.status.left_world": "[AutoSell] World left, auto-selling stopped",
   "message.donuttweks.autosell.status.swap_failed": "[AutoSell] Could not move the item into your hand",
-  "message.donuttweks.autosell.status.no_space": "[AutoSell] No free inventory slot available for safe splitting"
+  "message.donuttweks.autosell.status.no_space": "[AutoSell] No free inventory slot available for safe splitting",
+  "message.donuttweks.autosell.status.waiting_server": "[AutoSell] Server is not responding - repeating the command (still in the queue?)"
 }
